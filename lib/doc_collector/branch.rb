@@ -28,8 +28,12 @@ module DocCollector
       @collect_files_config["patterns"] || []
     end 
 
+    def downcase_keys(hash)
+      Hash[hash.to_a.map{|p| [p[0].downcase, p[1]]}]
+    end 
     def collect_files_array
-      @collect_files_config["files"] || []
+      (@collect_files_config["files"] || []).map{|h| downcase_keys(h) }
+
     end 
     def metadata_to_apply
       collect_files_array.select{|set| !set.has_key?("from") }
@@ -52,18 +56,19 @@ module DocCollector
    
     def load_input_files
       return if @input
-      file_set = Hardwired::CaseInsensitiveHash.new
+      file_set = {}
       tree.walk_blobs(:postorder) do |root, e|
         path = root + e[:name]
         
-        if search_patterns.any?{ |p| File.fnmatch(p, "/" + path) }
-          file = {from: path, rawdata: @git.lookup(e[:oid]).read_raw.data, meta:{}}
-          file_set[path] = file
+        if search_patterns.any?{ |p| File.fnmatch(p, "/" + path,File::FNM_CASEFOLD) }
+          file = {from: path, rawdata: @git.lookup(e[:oid]).read_raw.data, meta: {}}
+          file_set[path.downcase] = file
         end
       end
 
     
       collect_files_array.each do |f|
+        f = downcase_keys(f)
         from = f["from"]
         blob = tree.path(from)
         if blob.nil?
@@ -76,7 +81,7 @@ module DocCollector
         f.delete_if{|k,v| k == "from"} #Remove parsed stuff from meta
 
     
-        file_set[from] = m #Hopefully this means we overwrite the equivalent 
+        file_set[from.downcase] = m #Hopefully this means we overwrite the equivalent 
       end
 
       file_set.each do |k, file|
@@ -86,7 +91,9 @@ module DocCollector
         rescue Psych::SyntaxError
           @errors << "Invalid front-matter metadata in #{k}, branch #{name} \n #{$!}"
         end
-        file[:meta].merge!(meta) if has_meta#merge the file and the .yml metadata, .yml wins
+        meta = downcase_keys(meta || {})
+        file[:meta] = downcase_keys(file[:meta])
+        file[:meta].merge!(meta) #merge the file and the .yml metadata, .yml wins
 
         file[:meta]["edit_info"] = "#{name}/#{k}" #so we can make an edit page button 
         file[:markup] = markup
@@ -102,12 +109,12 @@ module DocCollector
       split = {}
       normal_by_target = {}
       @input.clone.each  do |k,v| 
-        if v[:meta]["render_and_split"]
+        if v[:meta]["render_and_split"] == true || v[:meta]["render_and_split"].is_a?(Array)
           split[k] = v
         else
-          target = v[:meta]["to"] || v[:from]
+          target_path = v[:meta]["to"] || v[:from]
           v[:meta].delete("to")
-          normal_by_target[target] = v
+          normal_by_target[target_path.downcase] = v
         end
       end
       split.each do |path, file|
@@ -115,13 +122,18 @@ module DocCollector
         splitter = RenderSplit.new
         details = file[:meta]["render_and_split"]
         raise "Convention-based splitting not yet supported. #{path} branch #{name}" if (details == true)
+        require 'pry'
+        binding.pry
         details.each do |target|
+          target = downcase_keys(target)
           new_markup = extract_html_from_gfm(file[:markup], target["start_at"], target["stop_before"])
-          new_metadata = target.select{|k,_| !["start_at", "stop_before"].include?(k)}
-          new_metadata = file[:meta].select{|k,_| !["render_and_split"].include?(k)}.merge(new_metadata)
+          config_meta = target.select{|k,_| !["start_at", "stop_before"].include?(k)}
+          file_meta = file[:meta].select{|k,_| !["render_and_split"].include?(k)}
+          
+          new_metadata = file_meta.merge(new_metadata)
           new_path = new_metadata["to"]
           new_metadata.delete("to")
-          normal_by_target[new_path] = {meta: new_metadata, markup: new_markup}
+          normal_by_target[new_path.downcase] = {meta: new_metadata, markup: new_markup}
         end
         
       end
@@ -133,6 +145,7 @@ module DocCollector
         new_raw_text = YAML.dump(pair[1][:meta]) + "---\n\n" + pair[1][:markup]
         #puts new_raw_text
         begin 
+
           t = Hardwired::Template.new(nil, pair[0], new_raw_text)
           t.is_page? ? Hardwired::Page.new(t) : t
         rescue Exception => e

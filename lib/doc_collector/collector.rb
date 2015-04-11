@@ -44,10 +44,10 @@ module DocCollector
     end
 
     def produce_combined_output
-      combined = {}
+      combined = Hardwired::CaseInsensitiveHash.new
       existing_aliases = Set.new
 
-      versions_of = {}
+      versions_of = Hardwired::CaseInsensitiveHash.new
       branches.reverse.each do |b|
         b.load_configuration
         b.load_input_files
@@ -76,7 +76,7 @@ module DocCollector
       out = produce_combined_output
       #puts out
       out.each do |path, page|
-        full_path = File.join(folder_name, path)
+        full_path = File.join(folder_name, path.to_s)
         
         FileUtils::mkdir_p(File.dirname(full_path))
         File.open(full_path, 'w') do  |file| 
