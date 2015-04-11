@@ -52,7 +52,6 @@ module DocCollector
         b.produce_output.each do |p|
           higher_level_path = Pathname.new(b.subfolder).join(p.path).cleanpath.to_s
           combined[higher_level_path] = p
-
           alias_set = Set.new(p.aliases)
           #Prevent conflicting aliases
           if existing_aliases.intersect?(alias_set)

@@ -76,7 +76,7 @@ module DocCollector
         content = @git.lookup(blob[:oid]).content
 
         m = {from: from, rawdata: content, meta: f}
-        f.delete_if{|k,v| ["from"]} #Remove parsed stuff from meta
+        f.delete_if{|k,v| k == "from"} #Remove parsed stuff from meta
 
         mentioned << m
         file_set[from] = m #Hopefully this means we overwrite the equivalent 
@@ -109,6 +109,7 @@ module DocCollector
           split[k] = v
         else
           target = v[:meta]["to"] || v[:from]
+          v[:meta].delete("to")
           normal_by_target[target] = v
         end
       end
@@ -121,7 +122,9 @@ module DocCollector
           new_markup = extract_html_from_gfm(file[:markup], target["start_at"], target["stop_before"])
           new_metadata = target.select{|k,_| !["start_at", "stop_before"].include?(k)}
           new_metadata = file[:meta].select{|k,_| !["render_and_split"].include?(k)}.merge(new_metadata)
-          normal_by_target[new_metadata["to"]] = {meta: new_metadata, markup: new_markup}
+          new_path = new_metadata["to"]
+          new_metadata.delete("to")
+          normal_by_target[new_path] = {meta: new_metadata, markup: new_markup}
         end
         
       end
