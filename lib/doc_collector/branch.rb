@@ -130,15 +130,15 @@ module DocCollector
         splitter = RenderSplit.new
         details = file[:meta]["render_and_split"]
         raise "Convention-based splitting not yet supported. #{path} branch #{name}" if (details == true)
-        require 'pry'
-        binding.pry
+        #require 'pry'
+        #binding.pry
         details.each do |target|
           target = downcase_keys(target)
-          new_markup = extract_html_from_gfm(file[:markup], target["start_at"], target["stop_before"])
+          new_markup = splitter.extract_html_from_gfm(file[:markup], target["start_at"], target["stop_before"])
           config_meta = target.select{|k,_| !["start_at", "stop_before"].include?(k)}
           file_meta = file[:meta].select{|k,_| !["render_and_split"].include?(k)}
           
-          new_metadata = file_meta.merge(new_metadata)
+          new_metadata = file_meta.merge(config_meta)
           new_path = new_metadata["to"]
           new_metadata.delete("to")
           normal_by_target[new_path.downcase] = {meta: new_metadata, markup: new_markup}
