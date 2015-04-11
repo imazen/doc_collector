@@ -44,13 +44,19 @@ module DocCollector
 
     def load_configuration
       return if @collect_files_config
-      blob = tree.path("docs/collect_files.yml")
+      yaml_path = "docs/collect_files.yml"
+      blob = tree.path(yaml_path)
       raise "Branch #{name} is missing docs/collect_files.yml" if blob.nil?
       
       
 
       text_contents = @git.lookup(blob[:oid]).content
-      @collect_files_config = YAML.load(text_contents)
+      begin 
+        @collect_files_config = YAML.load(text_contents)
+      rescue Psych::SyntaxError
+        @errors << "Invalid YAML in #{yaml_path}, branch #{name} \n #{$!}"
+        puts @errors
+      end
     end
 
    
@@ -70,11 +76,13 @@ module DocCollector
       collect_files_array.each do |f|
         f = downcase_keys(f)
         from = f["from"]
-        blob = tree.path(from)
-        if blob.nil?
-          errors << "Branch #{name} does not contain #{from}"
+        begin 
+          blob = tree.path(from)
+        rescue Rugged::TreeError
+          errors << "Branch #{name} does not contain #{from}\n #{$!}"
           next
         end
+
         content = @git.lookup(blob[:oid]).content
 
         m = {from: from, rawdata: content, meta: f}
