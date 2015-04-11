@@ -29,19 +29,21 @@ Or install it yourself as:
 
 DocCollector will read the docs/collect_branches.yml file from the ‘master’ branch of the provided repository. In URL conflicts, the first version listed wins.
 
-  branches:
-    - branch: develop
-      subfolder: docs/latest
+```yaml
+   branches:
+     - branch: develop
+       subfolder: docs/latest
       
-    - branch: support/v4
-      subfolder: docs/v4
+     - branch: support/v4
+       subfolder: docs/v4
       
-    - branch: support/v3
-      subfolder: docs/v3
-      
+     - branch: support/v3
+       subfolder: docs/v3
+```
 
 DocCollector will look at all *.md files in each branch. In addition, it will read docs/collect_files.yml to discover additional files. collect_files.yml can override metadata in individual files.
 
+```yaml
   patterns:
     - "/**/*.md"
   files:
@@ -62,7 +64,7 @@ DocCollector will look at all *.md files in each branch. In addition, it will re
 
     - to: /licenses/pdfrenderer.md
       title: PDF renderer licensing
-
+```
 
 
 
