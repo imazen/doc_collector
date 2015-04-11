@@ -52,20 +52,17 @@ module DocCollector
    
     def load_input_files
       return if @input
-      file_set = {}
-      found = []
+      file_set = Hardwired::CaseInsensitiveHash.new
       tree.walk_blobs(:postorder) do |root, e|
         path = root + e[:name]
         
         if search_patterns.any?{ |p| File.fnmatch(p, "/" + path) }
           file = {from: path, rawdata: @git.lookup(e[:oid]).read_raw.data, meta:{}}
-          found << file
-          file_set[root] = file
-
+          file_set[path] = file
         end
       end
 
-      mentioned = []
+    
       collect_files_array.each do |f|
         from = f["from"]
         blob = tree.path(from)
@@ -78,7 +75,7 @@ module DocCollector
         m = {from: from, rawdata: content, meta: f}
         f.delete_if{|k,v| k == "from"} #Remove parsed stuff from meta
 
-        mentioned << m
+    
         file_set[from] = m #Hopefully this means we overwrite the equivalent 
       end
 
