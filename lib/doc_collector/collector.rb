@@ -46,13 +46,19 @@ module DocCollector
     def produce_combined_output
       combined = {}
       existing_aliases = Set.new
+
+      versions_of = {}
       branches.reverse.each do |b|
         b.load_configuration
         b.load_input_files
+        b.produce_output.each{|p| versions_of[p.path] ||= []; versions_of[p.path] << b.subfolder}
+      end
+      branches.reverse.each do |b|
         b.produce_output.each do |p|
           higher_level_path = Pathname.new(b.subfolder).join(p.path).cleanpath.to_s
           combined[higher_level_path] = p
           alias_set = Set.new(p.aliases)
+          p.meta.versions = versions_of[p.path]
           #Prevent conflicting aliases
           if existing_aliases.intersect?(alias_set)
             p.meta.aliases = alias_set.subtract(existing_aliases).to_a
