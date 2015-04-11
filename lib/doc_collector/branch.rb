@@ -1,5 +1,6 @@
 require 'rugged'
 require 'yaml'
+require 'hardwired'
 module DocCollector
   class Branch
     def initialize(repo, branch_name, meta)
@@ -16,15 +17,19 @@ module DocCollector
     attr_reader :name, :branch_meta, :tree, :errors
 
     def exists?
-      !@tree.nil?
+      !tree.nil?
+    end
+
+    def subfolder
+      branch_meta["subfolder"]
     end
 
     def search_patterns
-      @collect_files_config["patterns"]
+      @collect_files_config["patterns"] || []
     end 
 
     def collect_files_array
-      @collect_files_config["files"]
+      @collect_files_config["files"] || []
     end 
     def metadata_to_apply
       collect_files_array.select{|set| !set.has_key?("from") }
@@ -34,23 +39,30 @@ module DocCollector
     end 
 
     def load_configuration
-      
+      return if @collect_files_config
       blob = tree.path("docs/collect_files.yml")
       raise "Branch #{name} is missing docs/collect_files.yml" if blob.nil?
       
-      text_contents = blob.read_raw.data
+      
+
+      text_contents = @git.lookup(blob[:oid]).content
       @collect_files_config = YAML.load(text_contents)
     end
 
    
     def load_input_files
+      return if @input
       file_set = {}
       found = []
       tree.walk_blobs(:postorder) do |root, e|
-        if search_patterns.any?{ |p| File.fnmatch(p, root) }
-          file = {from: root, rawdata: @git.lookup(e[:oid]).read_raw.data}
+        path = root + e[:name]
+        puts path
+        puts search_patterns
+        if search_patterns.any?{ |p| File.fnmatch(p, "/" + path) }
+          file = {from: path, rawdata: @git.lookup(e[:oid]).read_raw.data, meta:{}}
           found << file
           file_set[root] = file
+
         end
       end
 
@@ -62,7 +74,9 @@ module DocCollector
           errors << "Branch #{name} does not contain #{from}"
           next
         end
-        m = {from: from, rawdata: blob.read_raw.data, meta: f}
+        content = @git.lookup(blob[:oid]).content
+
+        m = {from: from, rawdata: content, meta: f}
         f.delete_if?{|k,v| ["from"]} #Remove parsed stuff from meta
 
         mentioned << m
@@ -72,7 +86,7 @@ module DocCollector
       file_set.each do |k, file|
         raw_contents = file[:rawdata]
         begin
-          meta, markup, has_meta = MetadataParsing.extract(raw_contents)
+          meta, markup, has_meta = Hardwired::MetadataParsing.extract(raw_contents)
         rescue Psych::SyntaxError
           @errors << "Invalid front-matter metadata in #{k}, branch #{name} \n #{$!}"
         end
@@ -83,14 +97,15 @@ module DocCollector
       end
 
       @input = file_set
+
+      puts "#{@input.count} files sourced from #{name}"
     end 
 
     def produce_output_copy
 
-      output = @input.clone
       split = {}
       normal_by_target = {}
-      @input.each  do |k,v| 
+      @input.clone.each  do |k,v| 
         if v[:meta]["render_and_split"]
           split[k] = v
         else
@@ -112,16 +127,24 @@ module DocCollector
         
       end
 
-      normal_by_target.to_a.map do |pair|
+      puts normal_by_target
+      require 'pry'
+      #binding.pry
+      result = normal_by_target.to_a.map do |pair|
         new_raw_text = YAML.dump(pair[1][:meta]) + "---\n\n" + pair[1][:markup]
         t = Hardwired::Template.new(nil, pair[0], new_raw_text)
-        t.is_page? ? Page.new(t) : t
+        t.is_page? ? Hardwired::Page.new(t) : t
         #{path: pair[0], data: pair[1]}
       end
+
+      puts result
+      result
     end
 
     def produce_output
       @output ||= produce_output_copy
+      puts @output
+      @output
     end
 
 
