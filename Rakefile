@@ -14,3 +14,10 @@ task :try do
  coll.write_output_to("../doc_collector-sample_output")
 end
 
+task :resizer do
+ coll = DocCollector::Collector.for_working_copy("../resizer")
+ coll.load_branches_yaml
+ coll.read_from_branches
+ coll.write_output_to("../resizer-web")
+end
+

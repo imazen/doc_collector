@@ -50,7 +50,7 @@ module DocCollector
         b.load_configuration
         b.load_input_files
         b.produce_output.each do |p|
-          higher_level_path = Pathname.new(b.subfolder).join(p.path).cleanpath
+          higher_level_path = Pathname.new(b.subfolder).join(p.path).cleanpath.to_s
           combined[higher_level_path] = p
 
           alias_set = Set.new(p.aliases)
@@ -69,7 +69,7 @@ module DocCollector
 
     def write_output_to(folder_name)
       out = produce_combined_output
-      puts out
+      #puts out
       out.each do |path, page|
         full_path = File.join(folder_name, path)
         

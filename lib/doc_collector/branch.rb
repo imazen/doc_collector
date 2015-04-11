@@ -56,8 +56,7 @@ module DocCollector
       found = []
       tree.walk_blobs(:postorder) do |root, e|
         path = root + e[:name]
-        puts path
-        puts search_patterns
+        
         if search_patterns.any?{ |p| File.fnmatch(p, "/" + path) }
           file = {from: path, rawdata: @git.lookup(e[:oid]).read_raw.data, meta:{}}
           found << file
@@ -77,7 +76,7 @@ module DocCollector
         content = @git.lookup(blob[:oid]).content
 
         m = {from: from, rawdata: content, meta: f}
-        f.delete_if?{|k,v| ["from"]} #Remove parsed stuff from meta
+        f.delete_if{|k,v| ["from"]} #Remove parsed stuff from meta
 
         mentioned << m
         file_set[from] = m #Hopefully this means we overwrite the equivalent 
@@ -98,7 +97,7 @@ module DocCollector
 
       @input = file_set
 
-      puts "#{@input.count} files sourced from #{name}"
+      puts "#{@input.count} files sourced from #{name}: #{file_set.keys * ', '}"
     end 
 
     def produce_output_copy
@@ -127,23 +126,31 @@ module DocCollector
         
       end
 
-      puts normal_by_target
-      require 'pry'
+      #puts normal_by_target
+      #require 'pry'
       #binding.pry
       result = normal_by_target.to_a.map do |pair|
         new_raw_text = YAML.dump(pair[1][:meta]) + "---\n\n" + pair[1][:markup]
-        t = Hardwired::Template.new(nil, pair[0], new_raw_text)
-        t.is_page? ? Hardwired::Page.new(t) : t
+        #puts new_raw_text
+        begin 
+          t = Hardwired::Template.new(nil, pair[0], new_raw_text)
+          t.is_page? ? Hardwired::Page.new(t) : t
+        rescue Exception => e
+          puts e
+          puts e.backtrace
+          nil
+        end
+        
         #{path: pair[0], data: pair[1]}
-      end
+      end.compact
 
-      puts result
+      #puts result
       result
     end
 
     def produce_output
       @output ||= produce_output_copy
-      puts @output
+      #puts @output
       @output
     end
 
