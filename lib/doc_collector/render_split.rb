@@ -26,7 +26,7 @@ module DocCollector
           if !n.element?
             target_node.add_child(n.dup)
           else
-            copy = n.document.create_element(n.name, n.attributes)
+            copy = target_node.document.create_element(n.name, n.attributes)
             target_node.add_child(copy)
           
             result = cloneBetweenInner(n.children, copy, a, b) unless n.children.nil?
