@@ -18,6 +18,13 @@ task :resizer do
  coll = DocCollector::Collector.for_working_copy("../resizer")
  coll.load_branches_yaml
  coll.read_from_branches
- coll.write_output_to("../resizer-web")
+ coll.write_output_to("../resizer-web/content")
 end
 
+
+task :docs do
+ coll = DocCollector::Collector.for_working_copy("../docs-resizer")
+ coll.load_branches_yaml
+ coll.read_from_branches
+ coll.write_output_to("../resizer-web/content")
+end
