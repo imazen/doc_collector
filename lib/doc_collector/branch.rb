@@ -24,9 +24,26 @@ module DocCollector
       branch_meta["subfolder"]
     end
 
-    def search_patterns
-      @collect_files_config["patterns"] || []
+  
+
+
+    def folders
+      @collect_files_config["folders"] || []
     end 
+
+    def folders_flattened
+
+      folders.map do |h|
+        h["glob"].map do |glob|
+          {spec: File.join('/' + h["from"].gsub(/\A\/+/,""), glob), 
+            remove_prefix: '/' + h["from"].gsub(/\A\/+/,""), 
+            insert_prefix: (h["to"] || ""),
+            meta: h.select{|k,_| !["from", "to","glob"].include?(k)}}
+        end
+      end.flatten
+    end
+        
+
 
     def downcase_keys(hash)
       Hash[hash.to_a.map{|p| [p[0].downcase, p[1]]}]
@@ -63,12 +80,22 @@ module DocCollector
     def load_input_files
       return if @input
       file_set = {}
+      
+      search_patterns = folders_flattened
       tree.walk_blobs(:postorder) do |root, e|
         path = root + e[:name]
-        
-        if search_patterns.any?{ |p| File.fnmatch(p, "/" + path,File::FNM_CASEFOLD) }
-          file = {from: path, rawdata: @git.lookup(e[:oid]).read_raw.data, meta: {}}
+        abs_path = '/' + path
+
+        match = search_patterns.select{ |p| File.fnmatch(p[:spec], abs_path ,File::FNM_CASEFOLD) }.first
+
+        unless match.nil?
+          raise "Unexpected mismatch!" unless abs_path.start_with?(match[:remove_prefix])
+          to_path = File.join(match[:insert_prefix], abs_path[match[:remove_prefix].length..-1]).gsub(/\A\/+/,"")
+
+          file = {from: path, rawdata: @git.lookup(e[:oid]).read_raw.data, meta: {"to" => to_path}.merge(match[:meta])}
           file_set[path.downcase] = file
+
+          puts "Found #{path} #{file[:meta]} using #{match}\n"
         end
       end
 
@@ -93,18 +120,23 @@ module DocCollector
       end
 
       file_set.each do |k, file|
-        raw_contents = file[:rawdata]
-        begin
-          meta, markup, has_meta = Hardwired::MetadataParsing.extract(raw_contents)
-        rescue Psych::SyntaxError
-          @errors << "Invalid front-matter metadata in #{k}, branch #{name} \n #{$!}"
+        unless file[:meta]["verbatim"]
+          raw_contents = file[:rawdata]
+          begin
+            meta, markup, has_meta = Hardwired::MetadataParsing.extract(raw_contents)
+          rescue Psych::SyntaxError
+            @errors << "Invalid front-matter metadata in #{k}, branch #{name} \n #{$!}"
+          end
+          file[:markup] = markup
+          meta = downcase_keys(meta || {})
+          file[:meta] = downcase_keys(file[:meta])
+          file[:meta].merge!(meta) #merge the file and the .yml metadata, .yml wins
+        else
+          meta = file[:meta]
         end
-        meta = downcase_keys(meta || {})
-        file[:meta] = downcase_keys(file[:meta])
-        file[:meta].merge!(meta) #merge the file and the .yml metadata, .yml wins
-
+        
         file[:meta]["edit_info"] = "#{name}/#{k}" #so we can make an edit page button 
-        file[:markup] = markup
+      
       end
 
       @input = file_set
@@ -146,10 +178,13 @@ module DocCollector
         
       end
 
-      #puts normal_by_target
+      puts normal_by_target.keys
       #require 'pry'
       #binding.pry
-      result = normal_by_target.to_a.map do |pair|
+
+
+      result = normal_by_target.to_a.select{|pair| !pair[1][:meta]["verbatim"] }.map do |pair|
+
         new_raw_text = YAML.dump(pair[1][:meta]) + "---\n\n" + pair[1][:markup]
         #puts new_raw_text
         begin 
@@ -166,7 +201,7 @@ module DocCollector
       end.compact
 
       #puts result
-      result
+      {pages: result, file_writes: normal_by_target.to_a.select{|pair| pair[1][:meta]["verbatim"] }.map{|pair| {to: pair[0], contents: pair[1][:rawdata]}}}
     end
 
     def produce_output

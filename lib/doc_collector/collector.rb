@@ -51,20 +51,28 @@ module DocCollector
       branches.reverse.each do |b|
         b.load_configuration
         b.load_input_files
-        b.produce_output.each{|p| versions_of[p.path] ||= []; versions_of[p.path] << b.subfolder}
+        b.produce_output[:pages].each{|p| versions_of[p.path] ||= []; versions_of[p.path] << b.subfolder}
       end
       branches.reverse.each do |b|
-        b.produce_output.each do |p|
+        output = b.produce_output
+        output[:pages].each do |p|
           higher_level_path = Pathname.new(b.subfolder).join(p.path).cleanpath.to_s
           combined[higher_level_path] = p
           alias_set = Set.new(p.aliases)
-          p.meta.versions = versions_of[p.path]
+          # We no longer use versions - p.meta.versions = versions_of[p.path]
           #Prevent conflicting aliases
           if existing_aliases.intersect?(alias_set)
             p.meta.aliases = alias_set.subtract(existing_aliases).to_a
+            #Take conflicting aliases as a sign that we should not index
+            p.add_flag("-sitemap")
           end
           existing_aliases.merge(p.aliases)
         end
+        output[:file_writes].each do |w|
+          higher_level_path = Pathname.new(b.subfolder).join(w[:to]).cleanpath.to_s
+          combined[higher_level_path] = w[:contents]
+        end
+
         @errors.concat(b.errors)
       end
 
@@ -80,7 +88,7 @@ module DocCollector
         
         FileUtils::mkdir_p(File.dirname(full_path))
         File.open(full_path, 'w') do  |file| 
-          file.write(page.serialize_with_yaml)
+          file.write(page.is_a?(String) ? page : page.serialize_with_yaml)
         end
       end
       puts @errors
