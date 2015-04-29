@@ -71,7 +71,15 @@ module DocCollector
     def extract_dom_fragment(nokogiri_fragment, from_css_selctor, until_css_selctor)
       start_at = nokogiri_fragment.css(from_css_selctor).first
       end_at = nokogiri_fragment.css(until_css_selctor)
-     
+
+
+      if !from_css_selctor.nil? && start_at.nil?
+        raise ArgumentError.new("Starting split node #{from_css_selctor} was not found in the html") 
+      end
+      if !until_css_selctor.nil? && end_at.empty?
+        raise ArgumentError.new("Ending split node #{until_css_selctor} was not found in the html") 
+      end
+
       cloneBetween(nokogiri_fragment.children,start_at,end_at)
 
     end 
