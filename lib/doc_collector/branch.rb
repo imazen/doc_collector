@@ -190,7 +190,8 @@ module DocCollector
         begin 
 
           t = Hardwired::Template.new(nil, pair[0], new_raw_text)
-          t.is_page? ? Hardwired::Page.new(t) : t
+          result = t.is_page? ? Hardwired::Page.new(t) : t
+          result.flag?(:'-collect') ? nil : result
         rescue Exception => e
           puts e
           puts e.backtrace
