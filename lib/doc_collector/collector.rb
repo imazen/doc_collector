@@ -16,7 +16,7 @@ module DocCollector
     end
 
     def load_branches_yaml
-      ref = @git.branches["master"]
+      ref = @git.branches["master"] || @git.branches["develop"] || @git.branches["production"] || @git.ref("HEAD")
       master_head_commit = @git.lookup(ref.target_id)
       blob = master_head_commit.tree.path("docs/collect_branches.yml")
       text_contents = @git.lookup(blob[:oid]).content
